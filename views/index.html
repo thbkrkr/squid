@@ -4,19 +4,34 @@
 <title>squid</title>
 <link rel="icon" href="favicon.ico" type="image/gif">
 <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.1.8/semantic.min.css">
+<!--
+<link rel="stylesheet" type="text/css" href="/s/z/s.css">
+-->
 </head><body>
 <style>
 /** begin:CSS **/
 
-.main, .tpl {
-  padding-top: 1em;
+.actions {
+  float: right;
 }
 
+.topbar {
+  margin-bottom: 0.5em;
+}
+
+.output {
+  font-size: 0.7em;
+}
+
+.status-OK,
 .status-Up {
   background: rgba(139, 195, 74, 0.6);
 }
 
-.status-Exited {
+.status-ERROR,
+.status-Created,
+.status-Exited,
+.status-Restarting {
   background: rgba(244, 67, 54, 0.6);
 }
 
@@ -39,15 +54,18 @@
 <!-- begin:HTML -->
 
 <body>
-<div class="ui main container">
-  <div>
-    <br>
-    <button class="ui green basic button btn-refresh">refresh</a>
-    <button class="ui teal basic button btn-up">up</a>
+<div class="ui main text container">
+  <div class="topbar">
+    <span class="actions">
+      <button class="ui green basic button btn-refresh">refresh</button>
+      <button class="ui teal basic button btn-up">up</button>
+    </span>
+    <h2>squid</h2>
   </div>
 
   <div class="tpl deploy">
   </div>
+  <h3>> status</h3>
   <div class="tpl status">
   </div>
 
@@ -78,28 +96,44 @@
           <td><%= obj[c].fullStatus %></td>
           <td><%= obj[c].name %></td>
           <td class="toggle-item-def" style="display:none">
-            <pre class="toggle-item-def" style="display:none" class="json">
-              <%= JSON.stringify(obj[c].definition, undefined, 2) %>
-            </pre>
+            <pre class="toggle-item-def" style="display:none" class="json"><%=
+             JSON.stringify(obj[c].definition, undefined, 2) %></pre>
           </td>
         </tr>
         <% } %>
       </tbody>
+    </table>
   </script>
 
   <script type="text/html" id="tpl_deploy">
-    <% for ( var cmd in obj ) { %>
-    <div><%= obj[cmd].cmd.status %> - <%= obj[cmd].cmd.long_cmd %></div>
-    <pre><% for ( var l in obj[cmd].result) { %><%= obj[cmd].result[l] + '\n'%><% } %></pre>
-    <% } %>
+    <h3>> up</h3>
+    <table class="ui padded very compact basic table">
+      <tbody>
+        <% for ( var cmd in obj ) { %>
+        <tr>
+          <td>
+            <pre class="output"><% for ( var l in obj[cmd].result) { %><%= obj[cmd].result[l] + '\n'%><% } %></pre>
+          </td>
+        </tr>
+        <tr class="status-<%= obj[cmd].cmd.status %>">
+          <td>
+            <%= obj[cmd].cmd.status %> - <%= obj[cmd].cmd.long_cmd %>
+          </td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
   </script>
 
 <!-- end:HTML -->
 </div>
+<!--
+<script src="/s/z/s.js"></script><script>
+-->
 <script src="https://thbkrkr.github.io/s.js/dist/s.2.db65b41.js"></script><script>
 /** begin:JS */
 
-function show() {
+function status() {
   $get('/compose/status', function(data) {
     $('.tpl.status').html($tpl('tpl_status', data))
 
@@ -111,7 +145,7 @@ function show() {
 
 function init() {
   $('.btn-refresh').on('click', function() {
-    show()
+    status()
   })
 
   $('.btn-up').on('click', function() {
@@ -120,17 +154,19 @@ function init() {
     $get('/compose/up', function(data) {
       $('.tpl.deploy').html($tpl('tpl_deploy', data))
 
-      show()
+      status()
     })
   })
 }
 
 function main() {
   init()
-  show()
+  status()
 }
 
 main()
+
+setInterval(function(){ status() }, 5000);
 
 /** end:JS */
 </script></body></html>

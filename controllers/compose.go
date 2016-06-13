@@ -1,10 +1,8 @@
 package controllers
 
 import (
-	"encoding/json"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -18,6 +16,10 @@ import (
 var (
 	defaultHeaders = map[string]string{"User-Agent": "squid-api-1.0"}
 )
+
+func init() {
+	os.Setenv("JSON", "yes")
+}
 
 func GetStatus(c *gin.Context) {
 	containers, err := dockerStatus()
@@ -36,58 +38,29 @@ func GetStatus(c *gin.Context) {
 	c.JSON(200, services)
 }
 
+func GetFullStatus() ([]Service, error) {
+	containers, err := dockerStatus()
+	if err != nil {
+		return nil, err
+	}
+
+	composes, err := listComposes()
+	if err != nil {
+		return nil, err
+	}
+
+	services := mergeDockerStatusAndCompose(containers, composes)
+	return services, nil
+}
+
 func GetComposePlan(c *gin.Context) {
-	composes, err := listComposeFiles()
+	composes, err := listComposes()
 	if err != nil {
 		handleError(c, err)
 		return
 	}
 
 	c.JSON(200, composes)
-}
-
-type cmdResult struct {
-	Cmd    map[string]interface{} `json:"cmd"`
-	Result []string               `json:"result"`
-}
-
-func GetComposeUp(c *gin.Context) {
-	results := []cmdResult{}
-
-	composeFiles, err := listComposeFiles()
-	if err != nil {
-		handleError(c, err)
-		return
-	}
-
-	for _, composeFile := range composeFiles {
-		// Exec docker-compose up using doo
-		cmd := exec.Command("doo", "dc", composeFile, "up", "-d")
-
-		stdout, err := cmd.CombinedOutput()
-		if err != nil {
-			handleError(c, err)
-			return
-		}
-
-		lines := strings.Split(string(stdout), "\n")
-		// Forget the empty last line and
-		// unmarshal the penultimate line in json
-		in := lines[len(lines)-2]
-		var data map[string]interface{}
-		err = json.Unmarshal([]byte(in), &data)
-		if err != nil {
-			c.JSON(500, err.Error())
-			return
-		}
-
-		results = append(results, cmdResult{
-			Cmd:    data,
-			Result: lines[:len(lines)-2],
-		})
-	}
-
-	c.JSON(200, results)
 }
 
 func GetDockerStatus(c *gin.Context) {
@@ -126,7 +99,7 @@ func dockerStatus() ([]types.Container, error) {
 
 type services map[string]map[string]interface{}
 
-type compose struct {
+type Compose struct {
 	Services services `json:"services"`
 }
 
@@ -148,8 +121,8 @@ func listComposeFiles() ([]string, error) {
 	return composeFiles, err
 }
 
-func listComposes() ([]compose, error) {
-	composes := []compose{}
+func listComposes() ([]Compose, error) {
+	composes := []Compose{}
 
 	composeFiles, err := listComposeFiles()
 	if err != nil {
@@ -161,28 +134,28 @@ func listComposes() ([]compose, error) {
 		if err != nil {
 			return nil, err
 		}
-		composes = append(composes, compose)
+		composes = append(composes, *compose)
 	}
 
 	return composes, nil
 }
 
-func yaml2json(file string) (compose, error) {
+func yaml2json(file string) (*Compose, error) {
 	in, err := ioutil.ReadFile(file)
 	if err != nil {
-		return compose{}, err
+		return nil, err
 	}
 
-	var obj compose
-	err = yaml.Unmarshal(in, &obj)
+	var compose Compose
+	err = yaml.Unmarshal(in, &compose)
 	if err != nil {
-		return compose{}, err
+		return nil, err
 	}
 
-	return obj, nil
+	return &compose, nil
 }
 
-type service struct {
+type Service struct {
 	Image      string      `json:"image"`
 	Name       string      `json:"name"`
 	Status     string      `json:"status"`
@@ -190,12 +163,12 @@ type service struct {
 	Definition interface{} `json:"definition"`
 }
 
-func mergeDockerStatusAndCompose(containers []types.Container, composes []compose) []service {
-	services := []service{}
+func mergeDockerStatusAndCompose(containers []types.Container, composes []Compose) []Service {
+	services := []Service{}
 
 	// Add all containers listed in docker ps -a
 	for _, container := range containers {
-		services = append(services, service{
+		services = append(services, Service{
 			Image:      container.Image,
 			Name:       strings.Replace(container.Names[0], "/", "", -1),
 			FullStatus: container.Status,
@@ -206,7 +179,7 @@ func mergeDockerStatusAndCompose(containers []types.Container, composes []compos
 
 	// Update containers that are declared in a docker compose file
 
-	missingServices := []service{}
+	missingServices := []Service{}
 
 	for _, compose := range composes {
 		for name, composeService := range compose.Services {
@@ -227,7 +200,7 @@ func mergeDockerStatusAndCompose(containers []types.Container, composes []compos
 			}
 
 			if !isInDockerPs {
-				missingServices = append(missingServices, service{
+				missingServices = append(missingServices, Service{
 					Image:      image,
 					Name:       name,
 					FullStatus: "Absent",
