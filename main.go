@@ -34,8 +34,8 @@ func main() {
 	go postStatus()
 
 	api("squid", func(r *gin.Engine) {
-		r.POST("/collect/status/:host", controllers.CollectStatus)
-		r.GET("/statuses", controllers.Statuses)
+		r.POST("/nodes/status/:host", controllers.CollectStatus)
+		r.GET("/nodes/status", controllers.Statuses)
 
 		r.GET("/compose/status", controllers.GetStatus)
 		r.GET("/compose/up", controllers.GetComposeUp)
@@ -100,7 +100,7 @@ func send(services []controllers.Service) error {
 		return err
 	}
 
-	url := *collector + "/collect/status/" + *host
+	url := *collector + "/nodes/status/" + *host
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(json))
 	if err != nil {

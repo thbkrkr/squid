@@ -53,6 +53,13 @@
   background-color: rgba(255, 255, 255, 0.4);
 }
 
+.ellipsis {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /** end:CSS **/
 </style>
 <!-- begin:HTML -->
@@ -60,15 +67,10 @@
 <body>
 <div class="main text ui container">
   <div class="ui top attached tabular menu">
-    <a class="item green action-status active">
-      status
-    </a>
-    <a class="item teal action-up">
-      up
-    </a>
-    <a class="item purple action-history">
-      history
-    </a>
+    <a class="item green action-status active">status</a>
+    <a class="item teal action-up">up</a>
+    <a class="item pink action-nodes">nodes</a>
+    <a class="item purple action-history">history</a>
     <div class="right menu">
       <div class="item">
         <h2>squid</h2>
@@ -76,14 +78,10 @@
     </div>
   </div>
 
-  <div class="ui tpl up">
-  </div>
-
-  <div class="ui tpl history">
-  </div>
-
-  <div class="tpl status">
-  </div>
+  <div class="ui tpl up"></div>
+  <div class="ui tpl status"></div>
+  <div class="ui tpl nodes"></div>
+  <div class="ui tpl history"></div>
 
   <script type="text/html" id="tpl_loading">
     <div class="ui active inverted dimmer">
@@ -92,7 +90,7 @@
   </script>
 
   <script type="text/html" id="tpl_status">
-    <h3>status</h3>
+    <h2>status</h2>
     <table class="ui celled very compact table">
       <tbody>
         <% for ( var c in obj ) { %>
@@ -111,7 +109,7 @@
   </script>
 
   <script type="text/html" id="tpl_up">
-    <h3>up</h3>
+    <h2>up</h2>
     <table class="ui celled very compact basic table">
       <tbody>
         <% for ( var cmd in obj ) { %>
@@ -130,8 +128,26 @@
     </table>
   </script>
 
+  <script type="text/html" id="tpl_nodes">
+    <h2>nodes</h2>
+    <% for ( var node in obj ) { %>
+    <h3><%= node %></h3>
+    <table class="ui celled very compact table">
+      <tbody>
+        <% for ( var s in obj[node] ) { %>
+        <tr class="toggle-control-def status-<%= obj[node][s].status %>">
+          <td><%= obj[node][s].name %></td>
+          <td><%= obj[node][s].fullStatus %></td>
+          <td class="ellipsis"><%= obj[node][s].image %></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </script>
+
   <script type="text/html" id="tpl_history">
-    <h3>history</h3>
+    <h2>history</h2>
     <table class="ui celled very compact basic table">
       <tbody>
         <% for ( var i in obj ) { %>
@@ -163,20 +179,25 @@ function fromNow(timestamp) {
   return moment.unix(timestamp).add(hours, 'hours').fromNow()
 }
 
+function call(action) {
+  if (action == null) action = 'status'
+  for (var j = actions.length - 1; j >= 0; j--) {
+    if (action != actions[j]) {
+      $('.tpl.'+actions[j]).html('')
+      $('.action-'+actions[j]).removeClass('active')
+    } else {
+      $('.action-'+actions[j]).addClass('active')
+    }
+  }
+  eval(action)()
+}
+
 function bind(actions) {
   // call action on click button
   for (var i = actions.length - 1; i >= 0; i--) {
     $('.action-'+actions[i]).on('click', function() {
       action = $(this).attr('class').replace(/.*action-/, '').replace(' active', '')
-      for (var j = actions.length - 1; j >= 0; j--) {
-        if (action != actions[j]) {
-          $('.tpl.'+actions[j]).html('')
-          $('.action-'+actions[j]).removeClass('active')
-        } else {
-          $('.action-'+actions[j]).addClass('active')
-        }
-      }
-      eval(action)()
+      call(action)
     })
   }
   // refresh
@@ -209,6 +230,13 @@ function up() {
   })
 }
 
+function nodes() {
+  $get('/nodes/status', function(data) {
+    console.log(data)
+    $('.tpl.nodes').html($tpl('tpl_nodes', data))
+  })
+}
+
 function history() {
   $get('/executions', function(data) {
     $('.tpl.history').html($tpl('tpl_history', data.reverse()))
@@ -221,9 +249,12 @@ function refresh() {
 
 // -- main
 
+actions = ['status', 'up', 'nodes', 'history']
+
 function main() {
-  bind(['status', 'up', 'history'])
-  status()
+  bind(actions)
+
+  call($param('p'))
 }
 
 main()

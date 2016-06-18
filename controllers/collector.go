@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -23,6 +24,9 @@ func CollectStatus(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
+
+	fmt.Println(host)
+	fmt.Printf("%v\n", servicesForm)
 
 	statuses[host] = servicesForm
 
