@@ -11,12 +11,12 @@
 <style>
 /** begin:CSS **/
 
-.actions {
-  float: right;
+.main {
+  padding-top: 1em;
 }
 
-.topbar {
-  margin-bottom: 0.5em;
+.tpl {
+  margin-top: 1em;
 }
 
 .output {
@@ -25,18 +25,22 @@
 
 .status-OK,
 .status-Up {
-  background: rgba(139, 195, 74, 0.6);
+  color: #00BCD4;
 }
 
 .status-ERROR,
 .status-Created,
 .status-Exited,
 .status-Restarting {
-  background: rgba(244, 67, 54, 0.6);
+  color: #e91e63;
 }
 
 .status-Absent {
-  background: rgba(118, 118, 118, 0.6);
+  color: #ff5722;
+}
+
+.status-Unknown {
+  color: #999;
 }
 
 .json {
@@ -54,18 +58,30 @@
 <!-- begin:HTML -->
 
 <body>
-<div class="ui main text container">
-  <div class="topbar">
-    <span class="actions">
-      <button class="ui green basic button btn-refresh">refresh</button>
-      <button class="ui teal basic button btn-up">up</button>
-    </span>
-    <h2>squid</h2>
+<div class="main text ui container">
+  <div class="ui top attached tabular menu">
+    <a class="item green action-status active">
+      status
+    </a>
+    <a class="item teal action-up">
+      up
+    </a>
+    <a class="item purple action-history">
+      history
+    </a>
+    <div class="right menu">
+      <div class="item">
+        <h2>squid</h2>
+      </div>
+    </div>
   </div>
 
-  <div class="tpl deploy">
+  <div class="ui tpl up">
   </div>
-  <h3>> status</h3>
+
+  <div class="ui tpl history">
+  </div>
+
   <div class="tpl status">
   </div>
 
@@ -76,25 +92,14 @@
   </script>
 
   <script type="text/html" id="tpl_status">
-    <table class="ui padded very compact basic table">
-      <!--
-      <thead>
-        <tr>
-          <th>image</th>
-          <th>status</th>
-          <th>name</th>
-          <th class="toggle-item-def" style="display:none">
-          definition
-          </th>
-        </tr>
-      </thead>
-      -->
+    <h3>status</h3>
+    <table class="ui celled very compact table">
       <tbody>
         <% for ( var c in obj ) { %>
         <tr class="toggle-control-def status-<%= obj[c].status %>">
-          <td><%= obj[c].image %></td>
-          <td><%= obj[c].fullStatus %></td>
           <td><%= obj[c].name %></td>
+          <td><%= obj[c].fullStatus %></td>
+          <td><%= obj[c].image %></td>
           <td class="toggle-item-def" style="display:none">
             <pre class="toggle-item-def" style="display:none" class="json"><%=
              JSON.stringify(obj[c].definition, undefined, 2) %></pre>
@@ -105,9 +110,9 @@
     </table>
   </script>
 
-  <script type="text/html" id="tpl_deploy">
-    <h3>> up</h3>
-    <table class="ui padded very compact basic table">
+  <script type="text/html" id="tpl_up">
+    <h3>up</h3>
+    <table class="ui celled very compact basic table">
       <tbody>
         <% for ( var cmd in obj ) { %>
         <tr>
@@ -125,6 +130,24 @@
     </table>
   </script>
 
+  <script type="text/html" id="tpl_history">
+    <h3>history</h3>
+    <table class="ui celled very compact basic table">
+      <tbody>
+        <% for ( var i in obj ) { %>
+        <tr class="status-<%= obj[i].cmd.status %>">
+          <td>
+            <%= fromNow(obj[i].cmd.timestamp) %>
+          </td>
+          <td>
+            <%= obj[i].cmd.status %> - <%= obj[i].cmd.long_cmd %>
+          </td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </script>
+
 <!-- end:HTML -->
 </div>
 <!--
@@ -132,6 +155,40 @@
 -->
 <script src="https://thbkrkr.github.io/s.js/dist/s.2.db65b41.js"></script><script>
 /** begin:JS */
+
+// -- Utils
+
+function fromNow(timestamp) {
+  var hours = 0
+  return moment.unix(timestamp).add(hours, 'hours').fromNow()
+}
+
+function bind(actions) {
+  // call action on click button
+  for (var i = actions.length - 1; i >= 0; i--) {
+    $('.action-'+actions[i]).on('click', function() {
+      action = $(this).attr('class').replace(/.*action-/, '').replace(' active', '')
+      for (var j = actions.length - 1; j >= 0; j--) {
+        if (action != actions[j]) {
+          $('.tpl.'+actions[j]).html('')
+          $('.action-'+actions[j]).removeClass('active')
+        } else {
+          $('.action-'+actions[j]).addClass('active')
+        }
+      }
+      eval(action)()
+    })
+  }
+  // refresh
+  if (refresh) {
+    r = $param('r')
+    if (r != null) {
+      setInterval(function(){ refresh() }, 1000*r);
+    }
+  }
+}
+
+// -- Actions
 
 function status() {
   $get('/compose/status', function(data) {
@@ -143,30 +200,33 @@ function status() {
   })
 }
 
-function init() {
-  $('.btn-refresh').on('click', function() {
+function up() {
+  $('.tpl.up').html($tpl('tpl_loading'))
+
+  $get('/compose/up', function(data) {
+    $('.tpl.up').html($tpl('tpl_up', data))
     status()
-  })
-
-  $('.btn-up').on('click', function() {
-    $('.tpl.deploy').html($tpl('tpl_loading'))
-
-    $get('/compose/up', function(data) {
-      $('.tpl.deploy').html($tpl('tpl_deploy', data))
-
-      status()
-    })
   })
 }
 
+function history() {
+  $get('/executions', function(data) {
+    $('.tpl.history').html($tpl('tpl_history', data.reverse()))
+  })
+}
+
+function refresh() {
+  status()
+}
+
+// -- main
+
 function main() {
-  init()
+  bind(['status', 'up', 'history'])
   status()
 }
 
 main()
-
-setInterval(function(){ status() }, 5000);
 
 /** end:JS */
 </script></body></html>

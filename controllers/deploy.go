@@ -74,7 +74,9 @@ func GetComposeUp(c *gin.Context) {
 
 	m.Lock()
 	defer m.Unlock()
-	executions = results
+	for i := 0; i < nbComposes; i++ {
+		executions = append(executions, results[i])
+	}
 
 	c.JSON(200, results)
 }

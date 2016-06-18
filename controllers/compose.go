@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/docker/engine-api/client"
@@ -163,8 +164,24 @@ type Service struct {
 	Definition interface{} `json:"definition"`
 }
 
-func mergeDockerStatusAndCompose(containers []types.Container, composes []Compose) []Service {
-	services := []Service{}
+// A services slice is sortable
+
+type Services []Service
+
+func (s Services) Len() int {
+	return len(s)
+}
+
+func (s Services) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s Services) Less(i, j int) bool {
+	return s[i].Status < s[j].Status
+}
+
+func mergeDockerStatusAndCompose(containers []types.Container, composes []Compose) Services {
+	services := Services{}
 
 	// Add all containers listed in docker ps -a
 	for _, container := range containers {
@@ -172,7 +189,7 @@ func mergeDockerStatusAndCompose(containers []types.Container, composes []Compos
 			Image:      container.Image,
 			Name:       strings.Replace(container.Names[0], "/", "", -1),
 			FullStatus: container.Status,
-			Status:     "unknown",
+			Status:     "Unknown",
 			Definition: []string{},
 		})
 	}
@@ -194,6 +211,7 @@ func mergeDockerStatusAndCompose(containers []types.Container, composes []Compos
 			for i, s := range services {
 				if s.Image == image && (s.Name == name || strings.Contains(s.Name, "_"+name+"_")) {
 					isInDockerPs = true
+					// Keep the first word of the full status
 					services[i].Status = strings.Split(s.FullStatus, " ")[0]
 					services[i].Definition = composeService
 				}
@@ -212,6 +230,8 @@ func mergeDockerStatusAndCompose(containers []types.Container, composes []Compos
 	}
 
 	services = append(services, missingServices...)
+
+	sort.Sort(services)
 
 	return services
 }
