@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	defaultHeaders = map[string]string{"User-Agent": "squid-api-1.0"}
+	defaultHeaders = map[string]string{"User-Agent": "squid-1.0"}
 )
 
 func init() {
@@ -54,7 +54,7 @@ func GetFullStatus() ([]Service, error) {
 	return services, nil
 }
 
-func GetComposePlan(c *gin.Context) {
+func getComposePlan(c *gin.Context) {
 	composes, err := listComposes()
 	if err != nil {
 		handleError(c, err)
@@ -64,7 +64,7 @@ func GetComposePlan(c *gin.Context) {
 	c.JSON(200, composes)
 }
 
-func GetDockerStatus(c *gin.Context) {
+func getDockerStatus(c *gin.Context) {
 	containers, err := dockerStatus()
 	if err != nil {
 		c.JSON(500, err.Error())

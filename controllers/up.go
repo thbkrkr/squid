@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	executions = []*cmdResult{}
-	mE         sync.RWMutex
+	historyResults = []*cmdResult{}
+	mx             sync.RWMutex
 )
 
 type cmdResult struct {
@@ -22,7 +22,7 @@ type cmdResult struct {
 	Result []string               `json:"result"`
 }
 
-func GetComposeUp(c *gin.Context) {
+func ComposeUp(c *gin.Context) {
 	now := time.Now().UnixNano()
 
 	composeFiles, err := listComposeFiles()
@@ -58,7 +58,7 @@ func GetComposeUp(c *gin.Context) {
 			err = json.Unmarshal([]byte(in), &data)
 			if err != nil {
 				logrus.WithError(err).Errorf("Fail to execute: doo -q dc %s up -d", compose)
-				c.JSON(500, err.Error())
+				handleError(c, err)
 				return
 			}
 
@@ -72,22 +72,25 @@ func GetComposeUp(c *gin.Context) {
 
 	wg.Wait()
 
-	m.Lock()
-	defer m.Unlock()
+	// Historizes the last result
+	mx.Lock()
+	defer mx.Unlock()
 	for i := 0; i < nbComposes; i++ {
-		executions = append(executions, results[i])
+		historyResults = append(historyResults, results[i])
 	}
 
 	c.JSON(200, results)
 }
 
-func GetExecutions(c *gin.Context) {
-	m.RLock()
-	defer m.RUnlock()
+func ComposeUpHistory(c *gin.Context) {
+	mx.RLock()
+	defer mx.RUnlock()
 
-	if len(executions) > 10 {
-		c.JSON(200, executions[len(executions)-10:])
-	} else {
-		c.JSON(200, executions)
+	// Display only the last 10 results
+	from := 0
+	if len(historyResults) > 10 {
+		from = len(historyResults) - 10
 	}
+
+	c.JSON(200, historyResults[from:])
 }

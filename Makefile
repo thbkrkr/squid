@@ -25,7 +25,7 @@ run:
 	  krkr/squid
 
 dev:
-	go run main.go -c http://localhost:4242
+	go run main.go -join http://localhost:4242
 
 test-up:
 	cd test && docker-compose up -d
