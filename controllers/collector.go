@@ -37,6 +37,7 @@ func Statuses(c *gin.Context) {
 }
 
 func GetAgent(c *gin.Context) {
+	url := "https://squid.blurb.space"
 	getAgentScript := `docker pull krkr/squid
 docker rm -f squid-agent 2> /dev/null || true
 docker run -d \
@@ -47,7 +48,7 @@ docker run -d \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e DOMAIN=${DOMAIN} -e ONS_ZONE=${ONS_ZONE} \
   --restart=always \
-  krkr/squid -c http://localhost:4242
+  krkr/squid -c ` + url + `
 `
 
 	c.String(200, getAgentScript)

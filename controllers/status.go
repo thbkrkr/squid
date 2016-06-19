@@ -189,7 +189,7 @@ func mergeDockerStatusAndCompose(containers []types.Container, composes []Compos
 			Image:      container.Image,
 			Name:       strings.Replace(container.Names[0], "/", "", -1),
 			FullStatus: container.Status,
-			Status:     "Unknown",
+			Status:     "Z",
 			Definition: []string{},
 		})
 	}

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/gin-gonic/gin"
 )
 
@@ -56,6 +57,7 @@ func GetComposeUp(c *gin.Context) {
 			var data map[string]interface{}
 			err = json.Unmarshal([]byte(in), &data)
 			if err != nil {
+				logrus.WithError(err).Errorf("Fail to execute: doo -q dc %s up -d", compose)
 				c.JSON(500, err.Error())
 				return
 			}

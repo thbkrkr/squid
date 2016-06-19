@@ -27,12 +27,8 @@ run:
 dev:
 	go run main.go -c http://localhost:4242
 
-test:
-	docker run -d \
-		-v $$(pwd)/compose:/app/compose \
-		-v /var/run/docker.sock:/var/run/docker.sock \
-		--restart=always \
-	  krkr/squid -c http://172.17.0.1:4242
+test-up:
+	cd test && docker-compose up -d
 
 
 sync:
