@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"encoding/json"
-	"fmt"
 	"os/exec"
 	"strings"
 	"sync"
@@ -42,7 +41,6 @@ func GetComposeUp(c *gin.Context) {
 			defer wg.Done()
 
 			// Exec docker-compose up using doo
-			fmt.Printf("doo -q dc %s up -d\n", compose)
 			cmd := exec.Command("doo", "-q", "dc", compose, "up", "-d")
 
 			stdout, err := cmd.CombinedOutput()
@@ -85,5 +83,9 @@ func GetExecutions(c *gin.Context) {
 	m.RLock()
 	defer m.RUnlock()
 
-	c.JSON(200, executions)
+	if len(executions) > 10 {
+		c.JSON(200, executions[len(executions)-10:])
+	} else {
+		c.JSON(200, executions)
+	}
 }

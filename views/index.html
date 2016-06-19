@@ -4,9 +4,6 @@
 <title>squid</title>
 <link rel="icon" href="favicon.ico" type="image/gif">
 <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.1.8/semantic.min.css">
-<!--
-<link rel="stylesheet" type="text/css" href="/s/z/s.css">
--->
 </head><body>
 <style>
 /** begin:CSS **/
@@ -67,10 +64,10 @@
 <body>
 <div class="main text ui container">
   <div class="ui top attached tabular menu">
+    <a class="item pink action-nodes">nodes</a>
     <a class="item green action-status active">status</a>
     <a class="item teal action-up">up</a>
-    <a class="item pink action-nodes">nodes</a>
-    <a class="item purple action-history">history</a>
+    <a class="item purple action-logs">history</a>
     <div class="right menu">
       <div class="item">
         <h2>squid</h2>
@@ -78,10 +75,10 @@
     </div>
   </div>
 
+  <div class="ui tpl nodes"></div>
   <div class="ui tpl up"></div>
   <div class="ui tpl status"></div>
-  <div class="ui tpl nodes"></div>
-  <div class="ui tpl history"></div>
+  <div class="ui tpl logs"></div>
 
   <script type="text/html" id="tpl_loading">
     <div class="ui active inverted dimmer">
@@ -98,10 +95,6 @@
           <td><%= obj[c].name %></td>
           <td><%= obj[c].fullStatus %></td>
           <td><%= obj[c].image %></td>
-          <td class="toggle-item-def" style="display:none">
-            <pre class="toggle-item-def" style="display:none" class="json"><%=
-             JSON.stringify(obj[c].definition, undefined, 2) %></pre>
-          </td>
         </tr>
         <% } %>
       </tbody>
@@ -146,14 +139,14 @@
     <% } %>
   </script>
 
-  <script type="text/html" id="tpl_history">
-    <h2>history</h2>
+  <script type="text/html" id="tpl_logs">
+    <h2>logs</h2>
     <table class="ui celled very compact basic table">
       <tbody>
         <% for ( var i in obj ) { %>
         <tr class="status-<%= obj[i].cmd.status %>">
           <td>
-            <%= fromNow(obj[i].cmd.timestamp) %>
+            <%= $fromNow(obj[i].cmd.timestamp) %>
           </td>
           <td>
             <%= obj[i].cmd.status %> - <%= obj[i].cmd.long_cmd %>
@@ -166,95 +159,68 @@
 
 <!-- end:HTML -->
 </div>
-<!--
-<script src="/s/z/s.js"></script><script>
--->
-<script src="https://thbkrkr.github.io/s.js/dist/s.2.db65b41.js"></script><script>
+<script src="https://thbkrkr.github.io/s.js/dist/s.3.ad334a2.js"></script><script>
 /** begin:JS */
 
-// -- Utils
-
-function fromNow(timestamp) {
-  var hours = 0
-  return moment.unix(timestamp).add(hours, 'hours').fromNow()
-}
-
-function call(action) {
-  if (action == null) action = 'status'
-  for (var j = actions.length - 1; j >= 0; j--) {
-    if (action != actions[j]) {
-      $('.tpl.'+actions[j]).html('')
-      $('.action-'+actions[j]).removeClass('active')
-    } else {
-      $('.action-'+actions[j]).addClass('active')
+  function $call(action) {
+    if (action == null) {
+      for (first in actions) break;
+      action = first
     }
-  }
-  eval(action)()
-}
 
-function bind(actions) {
-  // call action on click button
-  for (var i = actions.length - 1; i >= 0; i--) {
-    $('.action-'+actions[i]).on('click', function() {
-      action = $(this).attr('class').replace(/.*action-/, '').replace(' active', '')
-      call(action)
-    })
-  }
-  // refresh
-  if (refresh) {
+    obj = actions[action]
+
+    // Unactive/active elements and reset template
+    for ( var a in actions ) {
+      if (a == action) {
+        $('.action-'+a).addClass('active')
+      } else {
+        $('.tpl.'+a).html('')
+        $('.action-'+a).removeClass('active')
+      }
+    }
+
+    args = ""
     r = $param('r')
-    if (r != null) {
-      setInterval(function(){ refresh() }, 1000*r);
+    if (r != null) args = "&r=" + r
+    window.history.pushState(action, action, "?p=" + action + args)
+
+    if (obj.loading) {
+      $('.tpl.'+action).html($tpl('tpl_loading'))
+    }
+
+    $loadTpl(action)
+  }
+
+  //
+
+actions = {
+  nodes: {
+    url: '/api/nodes/status'
+  },
+  status: {
+    url: '/api/compose/status'
+  },
+  up: {
+    url: '/api/compose/up',
+    loading: true,
+    onSuccess: function() {
+      $loadTpl('status')
+    }
+  },
+  logs: {
+    url: '/api/executions',
+    transform: function(data) {
+      return data.reverse()
     }
   }
-}
-
-// -- Actions
-
-function status() {
-  $get('/compose/status', function(data) {
-    $('.tpl.status').html($tpl('tpl_status', data))
-
-    $('.toggle-control-def').on('click', function() {
-      $('.toggle-item-def').toggle()
-    })
-  })
-}
-
-function up() {
-  $('.tpl.up').html($tpl('tpl_loading'))
-
-  $get('/compose/up', function(data) {
-    $('.tpl.up').html($tpl('tpl_up', data))
-    status()
-  })
-}
-
-function nodes() {
-  $get('/nodes/status', function(data) {
-    console.log(data)
-    $('.tpl.nodes').html($tpl('tpl_nodes', data))
-  })
-}
-
-function history() {
-  $get('/executions', function(data) {
-    $('.tpl.history').html($tpl('tpl_history', data.reverse()))
-  })
-}
-
-function refresh() {
-  status()
 }
 
 // -- main
 
-actions = ['status', 'up', 'nodes', 'history']
-
 function main() {
-  bind(actions)
-
-  call($param('p'))
+  $bind(actions)
+  $call($param('p'))
 }
 
 main()

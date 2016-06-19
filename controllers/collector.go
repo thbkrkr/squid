@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -25,9 +24,6 @@ func CollectStatus(c *gin.Context) {
 		return
 	}
 
-	fmt.Println(host)
-	fmt.Printf("%v\n", servicesForm)
-
 	statuses[host] = servicesForm
 
 	c.JSON(200, true)
@@ -38,4 +34,21 @@ func Statuses(c *gin.Context) {
 	defer m.RUnlock()
 
 	c.JSON(200, statuses)
+}
+
+func GetAgent(c *gin.Context) {
+	getAgentScript := `docker pull krkr/squid
+docker rm -f squid-agent 2> /dev/null || true
+docker run -d \
+  --name squid-agent \
+  --hostname=$(hostname) \
+  -p 4242 \
+  -v $(pwd)/compose:/app/compose \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e DOMAIN=${DOMAIN} -e ONS_ZONE=${ONS_ZONE} \
+  --restart=always \
+  krkr/squid -c http://localhost:4242
+`
+
+	c.String(200, getAgentScript)
 }

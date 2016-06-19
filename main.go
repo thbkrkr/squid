@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -16,8 +17,15 @@ import (
 )
 
 var (
-	collector = flag.String("c", "http://localhost:4242", "Collector URL")
-	host      = flag.String("host", "", "Hostname")
+	host = flag.String("host", "", "Hostname")
+
+	collector = flag.String("c", "", "Squid server URL")
+	period    = flag.Int("p", 10, "Interval to report health in seconds")
+
+	token = flag.String("Token", "ba.zinga", "Token")
+
+	buildDate = "dev"
+	gitCommit = "dev"
 )
 
 func main() {
@@ -31,23 +39,27 @@ func main() {
 		*host = hostname
 	}
 
-	go postStatus()
+	tokens := strings.Split(*token, ".")
+	username := tokens[0]
+	password := tokens[1]
 
-	api("squid", func(r *gin.Engine) {
-		r.POST("/nodes/status/:host", controllers.CollectStatus)
-		r.GET("/nodes/status", controllers.Statuses)
+	if *collector != "" {
+		go sendStatus(username, password)
+	}
 
-		r.GET("/compose/status", controllers.GetStatus)
-		r.GET("/compose/up", controllers.GetComposeUp)
-		r.GET("/compose/plan", controllers.GetComposePlan)
-
-		r.GET("/executions", controllers.GetExecutions)
-
-		r.GET("/docker/status", controllers.GetDockerStatus)
-	})
+	api("squid", username, password,
+		func(r *gin.Engine) {
+			r.GET("/get", controllers.GetAgent)
+		}, func(r *gin.RouterGroup) {
+			r.POST("/nodes/status/:host", controllers.CollectStatus)
+			r.GET("/nodes/status", controllers.Statuses)
+			r.GET("/compose/status", controllers.GetStatus)
+			r.GET("/compose/up", controllers.GetComposeUp)
+			r.GET("/executions", controllers.GetExecutions)
+		})
 }
 
-func api(name string, f func(r *gin.Engine)) {
+func api(name string, username string, password string, f func(r *gin.Engine), g func(r *gin.RouterGroup)) {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.Default()
@@ -60,9 +72,11 @@ func api(name string, f func(r *gin.Engine)) {
 
 	r.GET("/status", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"name":   name,
-			"ok":     "true",
-			"status": 200,
+			"name":      name,
+			"buildDate": buildDate,
+			"gitCommit": gitCommit,
+			"ok":        "true",
+			"status":    200,
 		})
 	})
 
@@ -72,12 +86,24 @@ func api(name string, f func(r *gin.Engine)) {
 
 	f(r)
 
-	logrus.WithField("port", 4242).WithField("name", name).Info("Start")
+	a := r.Group("/api", gin.BasicAuth(gin.Accounts{
+		username: password,
+	}))
+
+	g(a)
+
+	logrus.WithFields(logrus.Fields{
+		"name":      name,
+		"port":      4242,
+		"buildDate": buildDate,
+		"gitCommit": gitCommit,
+	}).Info("Start")
+
 	r.Run(":4242")
 }
 
-func postStatus() {
-	duration := time.Duration(10) * time.Second
+func sendStatus(username string, password string) {
+	duration := time.Duration(*period) * time.Second
 
 	for {
 		services, err := controllers.GetFullStatus()
@@ -85,7 +111,7 @@ func postStatus() {
 			logrus.WithError(err).Error("Fail to get status")
 		}
 
-		err = send(services)
+		err = send(username, password, services)
 		if err != nil {
 			logrus.WithError(err).Error("Fail to send status")
 		}
@@ -94,30 +120,25 @@ func postStatus() {
 	}
 }
 
-func send(services []controllers.Service) error {
+func send(username string, password string, services []controllers.Service) error {
 	json, err := json.Marshal(services)
 	if err != nil {
 		return err
 	}
 
-	url := *collector + "/nodes/status/" + *host
+	url := *collector + "/api/nodes/status/" + *host
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(json))
 	if err != nil {
 		return err
 	}
-	//req.Header.Set("Content-Type", "")
-	/*if c.username != "" {
-		req.SetBasicAuth(c.username, c.password)
-	}*/
+	req.SetBasicAuth(username, password)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-
-	//fmt.Printf("status=%v\n", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(resp.Body)
