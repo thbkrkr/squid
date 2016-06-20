@@ -39,6 +39,10 @@ tr.status-Unknown {
   color: #999;
 }
 
+tr.status-Expired {
+  color: #333;
+}
+
 .square-status {
   border: 1px white solid;
 }
@@ -63,6 +67,11 @@ div.status-Z,
 div.status-Unknown {
   background-color: #dadada;
 }
+
+div.status-Expired {
+  background-color: #333;
+}
+
 
 .json {
   margin: 0;
@@ -135,11 +144,11 @@ div.status-Unknown {
     <h3><%= node %></h3>
     <table class="ui very basic compact unstackable table">
       <tbody>
-        <% for ( var s in obj[node] ) { %>
-        <tr class="toggle-control-def status-<%= obj[node][s].status %>">
-          <td><%= obj[node][s].name %></td>
-          <td><%= obj[node][s].fullStatus %></td>
-          <td class="ellipsis"><%= obj[node][s].image %></td>
+        <% for ( var s in obj[node].services ) { %>
+        <tr class="toggle-control-def status-<%= obj[node].services[s].status %>">
+          <td><%= obj[node].services[s].name %></td>
+          <td><%= obj[node].services[s].fullStatus %></td>
+          <td class="ellipsis"><%= obj[node].services[s].image %></td>
         </tr>
         <% } %>
       </tbody>
@@ -151,8 +160,8 @@ div.status-Unknown {
     <% for ( var node in obj ) { %>
     <h5><%= node %></h5>
     <div class="ui aligned padded grid">
-        <% for ( var s in obj[node] ) { %>
-        <div class="column square-status status-<%= obj[node][s].status %>">
+        <% for ( var s in obj[node].services ) { %>
+        <div class="column square-status status-<%= obj[node].services[s].status %>">
         </div>
         <% } %>
     </div>

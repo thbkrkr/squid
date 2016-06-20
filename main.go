@@ -15,9 +15,10 @@ var (
 	creds = flag.String("creds", "ba:zinga", "Basic auth credentials (username:password)")
 
 	collector = flag.String("join", "https://squid.blurb.space", "Squid server URL")
-	period    = flag.Int("p", 10, "Interval to report status in seconds")
+	period    = flag.Int("p", 20, "Interval to report status in seconds")
 
-	host = flag.String("h", "", "Hostname")
+	host   = flag.String("h", "", "Hostname")
+	server = flag.Bool("server", false, "Server mode")
 
 	buildDate = "dev"
 	gitCommit = "dev"
@@ -32,6 +33,10 @@ func main() {
 			hostname = "default"
 		}
 		*host = hostname
+	}
+
+	if *server {
+		go controllers.CheckStatus()
 	}
 
 	credsParts := strings.Split(*creds, ":")

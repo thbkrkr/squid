@@ -98,11 +98,11 @@ func dockerStatus() ([]types.Container, error) {
 
 // ---------
 
-type services map[string]map[string]interface{}
-
-type Compose struct {
-	Services services `json:"services"`
+type RawCompose struct {
+	Services RawServices `json:"services"`
 }
+
+type RawServices map[string]map[string]interface{}
 
 var composesDir = "./compose"
 
@@ -122,8 +122,8 @@ func listComposeFiles() ([]string, error) {
 	return composeFiles, err
 }
 
-func listComposes() ([]Compose, error) {
-	composes := []Compose{}
+func listComposes() ([]RawCompose, error) {
+	composes := []RawCompose{}
 
 	composeFiles, err := listComposeFiles()
 	if err != nil {
@@ -141,13 +141,13 @@ func listComposes() ([]Compose, error) {
 	return composes, nil
 }
 
-func yaml2json(file string) (*Compose, error) {
+func yaml2json(file string) (*RawCompose, error) {
 	in, err := ioutil.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
 
-	var compose Compose
+	var compose RawCompose
 	err = yaml.Unmarshal(in, &compose)
 	if err != nil {
 		return nil, err
@@ -180,7 +180,7 @@ func (s Services) Less(i, j int) bool {
 	return s[i].Status < s[j].Status
 }
 
-func mergeDockerStatusAndCompose(containers []types.Container, composes []Compose) Services {
+func mergeDockerStatusAndCompose(containers []types.Container, composes []RawCompose) Services {
 	services := Services{}
 
 	// Add all containers listed in docker ps -a

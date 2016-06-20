@@ -14,24 +14,32 @@ import (
 )
 
 var (
-	statuses = map[string][]Service{}
+	statuses = map[string]NodeStatus{}
 	m        sync.RWMutex
+
+	checkExpiredPeriod = time.Duration(30) * time.Second
+	ttl                = time.Duration(40) * time.Second
 )
 
-func CollectStatus(c *gin.Context) {
-	m.Lock()
-	defer m.Unlock()
+type NodeStatus struct {
+	Node     string   `json:"node"`
+	Date     int64    `json:"date"`
+	Period   int      `json:"period"`
+	Services Services `json:"services"`
+}
 
+func CollectStatus(c *gin.Context) {
 	host := c.Param("host")
 
-	var servicesForm []Service
-
-	if err := c.BindJSON(&servicesForm); err != nil {
+	var s NodeStatus
+	if err := c.BindJSON(&s); err != nil {
 		handleError(c, err)
 		return
 	}
 
-	statuses[host] = servicesForm
+	m.Lock()
+	defer m.Unlock()
+	statuses[host] = s
 
 	c.JSON(200, true)
 }
@@ -69,7 +77,12 @@ func SendServicesStatus(collector string, username string, password string, peri
 			logrus.WithError(err).Error("Fail to get status")
 		}
 
-		err = postStatus(collector, username, password, host, services)
+		err = postStatus(collector, username, password, host, NodeStatus{
+			Node:     host,
+			Date:     time.Now().Unix(),
+			Period:   period,
+			Services: services,
+		})
 		if err != nil {
 			logrus.WithError(err).Error("Fail to send status")
 		}
@@ -78,8 +91,8 @@ func SendServicesStatus(collector string, username string, password string, peri
 	}
 }
 
-func postStatus(collector string, username string, password string, host string, services []Service) error {
-	json, err := json.Marshal(services)
+func postStatus(collector string, username string, password string, host string, nodeStatus NodeStatus) error {
+	json, err := json.Marshal(nodeStatus)
 	if err != nil {
 		return err
 	}
@@ -107,4 +120,33 @@ func postStatus(collector string, username string, password string, host string,
 	}
 
 	return nil
+}
+
+func CheckStatus() {
+	ticker := time.NewTicker(checkExpiredPeriod)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				maybeInvalidStatus()
+			}
+		}
+	}()
+}
+
+func maybeInvalidStatus() {
+	m.Lock()
+	defer m.Unlock()
+
+	for node, status := range statuses {
+		for i, s := range status.Services {
+			diff := time.Now().Sub(time.Unix(status.Date, 0)).Seconds()
+			if diff > ttl.Seconds() {
+				s.Status = "Expired"
+				s.FullStatus = "Expired, node dead?"
+				statuses[node].Services[i] = s
+			}
+		}
+	}
+
 }
