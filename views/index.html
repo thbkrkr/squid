@@ -18,6 +18,10 @@
   font-size: 0.7em;
 }
 
+.node-title {
+  margin: 0.2em;
+}
+
 tr.status-OK,
 tr.status-Up {
   color: #00BCD4;
@@ -30,12 +34,11 @@ tr.status-Restarting {
   color: #e91e63;
 }
 
-tr.status-Absent {
+tr.status-NotStarted {
   color: #ff5722;
 }
 
-tr.status-Z,
-tr.status-Unknown {
+tr.status-_NotDeclared {
   color: #999;
 }
 
@@ -54,17 +57,17 @@ div.status-Up {
 
 div.status-ERROR,
 div.status-Created,
+div.status-Dead,
 div.status-Exited,
 div.status-Restarting {
   background-color: #e91e63;
 }
 
-div.status-Absent {
+div.status-NotStarted {
   background-color: #ff5722;
 }
 
-div.status-Z,
-div.status-Unknown {
+div.status-_NotDeclared {
   background-color: #dadada;
 }
 
@@ -113,19 +116,23 @@ div.status-Expired {
 <div class="main ui container">
 
   <div class="ui top fixed menu">
+  </div>
 
-    <a class="item pink action action-nodes"><i class="grid layout icon"></i></a>
-    <a class="item pink action action-nodes_table"><i class="list browser icon"></i></a>
-    <a class="item green action action-status">status</a>
-    <a class="item teal action action-up">deploy</a>
-    <a class="item purple action action-logs">history</a>
+  <script type="text/html" id="tpl_menu">
+      <a class="item pink action action-nodes"><i class="grid layout icon"></i></a>
+      <a class="item pink action action-nodes_table"><i class="list browser icon"></i></a>
+    <% if (!obj.server) { %>
+      <a class="item green action action-status">status</a>
+      <a class="item teal action action-up">deploy</a>
+      <a class="item purple action action-logs">history</a>
+    <% } %>
 
     <div class="right menu">
       <div class="item title">
         <h2>squid</h2>
       </div>
     </div>
-  </div>
+  </script>
 
   <div class="ui tpl nodes"></div>
   <div class="ui tpl nodes_table"></div>
@@ -137,6 +144,18 @@ div.status-Expired {
     <div class="ui active inverted dimmer">
       <div class="ui large text loader">Loading</div>
     </div>
+  </script>
+
+  <script type="text/html" id="tpl_nodes">
+    <% for ( var node in obj ) { %>
+    <h5 class="node-title"><%= node %></h5>
+    <div class="ui aligned padded grid">
+        <% for ( var s in obj[node].services ) { %>
+        <div class="column square-status status-<%= obj[node].services[s].status %>">
+        </div>
+        <% } %>
+    </div>
+    <% } %>
   </script>
 
   <script type="text/html" id="tpl_nodes_table">
@@ -153,18 +172,6 @@ div.status-Expired {
         <% } %>
       </tbody>
     </table>
-    <% } %>
-  </script>
-
-  <script type="text/html" id="tpl_nodes">
-    <% for ( var node in obj ) { %>
-    <h5><%= node %></h5>
-    <div class="ui aligned padded grid">
-        <% for ( var s in obj[node].services ) { %>
-        <div class="column square-status status-<%= obj[node].services[s].status %>">
-        </div>
-        <% } %>
-    </div>
     <% } %>
   </script>
 
@@ -244,6 +251,10 @@ actions = {
     }
   }
 }
+
+$('.menu').append($tpl('tpl_menu', {
+  server: false
+}))
 
 /** end:JS */
 </script></body></html>

@@ -23,23 +23,16 @@ func init() {
 }
 
 func GetStatus(c *gin.Context) {
-	containers, err := dockerStatus()
+	services, err := getServices()
 	if err != nil {
 		handleError(c, err)
 		return
 	}
 
-	composes, err := listComposes()
-	if err != nil {
-		handleError(c, err)
-		return
-	}
-
-	services := mergeDockerStatusAndCompose(containers, composes)
 	c.JSON(200, services)
 }
 
-func GetFullStatus() ([]Service, error) {
+func getServices() ([]Service, error) {
 	containers, err := dockerStatus()
 	if err != nil {
 		return nil, err
@@ -50,7 +43,7 @@ func GetFullStatus() ([]Service, error) {
 		return nil, err
 	}
 
-	services := mergeDockerStatusAndCompose(containers, composes)
+	services := mergeDockerStatusAndComposes(containers, composes)
 	return services, nil
 }
 
@@ -110,7 +103,7 @@ func listComposeFiles() ([]string, error) {
 	composeFiles := []string{}
 
 	err := filepath.Walk(composesDir, func(path string, f os.FileInfo, err error) error {
-		if strings.Contains(path, ".yml") {
+		if strings.HasSuffix(path, ".yml") {
 			composeFiles = append(composeFiles, path)
 		}
 		return nil
@@ -180,27 +173,29 @@ func (s Services) Less(i, j int) bool {
 	return s[i].Status < s[j].Status
 }
 
-func mergeDockerStatusAndCompose(containers []types.Container, composes []RawCompose) Services {
+// status: Up, Ex
+
+func mergeDockerStatusAndComposes(containers []types.Container, composes []RawCompose) Services {
 	services := Services{}
 
-	// Add all containers listed in docker ps -a
+	// Transform all containers listed in docker ps -a in services
 	for _, container := range containers {
 		services = append(services, Service{
 			Image:      container.Image,
 			Name:       strings.Replace(container.Names[0], "/", "", -1),
 			FullStatus: container.Status,
-			Status:     "Z",
+			Status:     "_NotDeclared",
 			Definition: []string{},
 		})
 	}
 
-	// Update containers that are declared in a docker compose file
+	// Update service with its compose file declaration
 
 	missingServices := []Service{}
 
 	for _, compose := range composes {
 		for name, composeService := range compose.Services {
-
+			// Name is the container_name if defined or the key of the service
 			containerName := composeService["container_name"]
 			if containerName != nil {
 				name = containerName.(string)
@@ -209,20 +204,22 @@ func mergeDockerStatusAndCompose(containers []types.Container, composes []RawCom
 
 			isInDockerPs := false
 			for i, s := range services {
+				// The service match the compose declaration if image and name matches
 				if s.Image == image && (s.Name == name || strings.Contains(s.Name, "_"+name+"_")) {
 					isInDockerPs = true
-					// Keep the first word of the full status
+					// Keep the first word of the full status as status
 					services[i].Status = strings.Split(s.FullStatus, " ")[0]
 					services[i].Definition = composeService
 				}
 			}
 
+			// Handle containers not started
 			if !isInDockerPs {
 				missingServices = append(missingServices, Service{
 					Image:      image,
 					Name:       name,
-					FullStatus: "Absent",
-					Status:     "Absent",
+					FullStatus: "Not started",
+					Status:     "NotStarted",
 					Definition: composeService,
 				})
 			}

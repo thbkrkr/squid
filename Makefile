@@ -24,11 +24,18 @@ run:
 		--restart=always \
 	  krkr/squid
 
-dev:
+dev-agent:
 	go run main.go -join http://localhost:4242
+
+dev-server:
+	go run main.go -server
 
 test-up:
 	cd test && docker-compose up -d
+	cd test/n1 && docker-compose -f apish.yml up -d
+	cd test/n1 && docker-compose -f es.yml up -d
+	cd test/n2 && docker-compose -f stack.yml up -d
+	cd test/n3 && docker-compose -f stack.yml up -d
 
 
 sync:

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"sync"
@@ -18,7 +19,7 @@ var (
 	m        sync.RWMutex
 
 	checkExpiredPeriod = time.Duration(30) * time.Second
-	ttl                = time.Duration(40) * time.Second
+	ttl                = time.Duration(30) * time.Second
 )
 
 type NodeStatus struct {
@@ -52,8 +53,15 @@ func Statuses(c *gin.Context) {
 }
 
 func GetAgent(c *gin.Context) {
+	_, server := c.GetQuery("server")
+
+	if server {
+		GetServer(c)
+		return
+	}
+
 	url := "https://squid.blurb.space"
-	getAgentScript := `echo "Install squid...."
+	getAgentScript := `echo "Get squid-agent...."
 docker pull krkr/squid
 docker rm -f squid-agent 2> /dev/null || true
 docker run -d \
@@ -61,20 +69,33 @@ docker run -d \
   --hostname=$(hostname) \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v $(pwd)/compose:/app/compose \
-  -p 4242:4242 \
   --restart=always \
   krkr/squid -join ` + url
 
 	c.String(200, getAgentScript)
 }
 
+func GetServer(c *gin.Context) {
+	getServerScript := `echo "Get squid...."
+docker pull krkr/squid
+docker rm -f squid 2> /dev/null || true
+docker run -d \
+  --name squid \
+  --hostname=$(hostname) \
+  -p 4242:4242 \
+  --restart=always \
+  krkr/squid`
+
+	c.String(200, getServerScript)
+}
+
 func SendServicesStatus(collector string, username string, password string, period int, host string) {
 	duration := time.Duration(period) * time.Second
 
 	for {
-		services, err := GetFullStatus()
+		services, err := getServices()
 		if err != nil {
-			logrus.WithError(err).Error("Fail to get status")
+			logrus.WithError(err).Error("Fail to get services status")
 		}
 
 		err = postStatus(collector, username, password, host, NodeStatus{
@@ -84,7 +105,7 @@ func SendServicesStatus(collector string, username string, password string, peri
 			Services: services,
 		})
 		if err != nil {
-			logrus.WithError(err).Error("Fail to send status")
+			logrus.WithError(err).Error("Fail to send services status")
 		}
 
 		time.Sleep(duration)
@@ -140,10 +161,10 @@ func maybeInvalidStatus() {
 
 	for node, status := range statuses {
 		for i, s := range status.Services {
-			diff := time.Now().Sub(time.Unix(status.Date, 0)).Seconds()
-			if diff > ttl.Seconds() {
+			diff := time.Now().Sub(time.Unix(status.Date, 0))
+			if diff.Seconds() > ttl.Seconds() {
 				s.Status = "Expired"
-				s.FullStatus = "Expired, node dead?"
+				s.FullStatus = fmt.Sprintf("No data reporting since %s", diff)
 				statuses[node].Services[i] = s
 			}
 		}

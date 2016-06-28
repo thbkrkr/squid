@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -14,11 +15,11 @@ import (
 var (
 	creds = flag.String("creds", "ba:zinga", "Basic auth credentials (username:password)")
 
-	collector = flag.String("join", "https://squid.blurb.space", "Squid server URL")
+	collector = flag.String("join", "", "Squid server URL")
 	period    = flag.Int("p", 20, "Interval to report status in seconds")
 
-	host   = flag.String("h", "", "Hostname")
-	server = flag.Bool("server", false, "Server mode")
+	host     = flag.String("h", "", "Hostname")
+	isServer = flag.Bool("server", false, "Server mode")
 
 	buildDate = "dev"
 	gitCommit = "dev"
@@ -35,9 +36,7 @@ func main() {
 		*host = hostname
 	}
 
-	if *server {
-		go controllers.CheckStatus()
-	}
+	setJsServerVar(*isServer)
 
 	credsParts := strings.Split(*creds, ":")
 	username := credsParts[0]
@@ -46,6 +45,8 @@ func main() {
 	if *collector != "" {
 		go controllers.SendServicesStatus(*collector, username, password, *period, *host)
 	}
+
+	go controllers.CheckStatus()
 
 	api("squid", username, password,
 		func(r *gin.Engine) {
@@ -56,7 +57,27 @@ func main() {
 			r.GET("/compose/status", controllers.GetStatus)
 			r.GET("/compose/up", controllers.ComposeUp)
 			r.GET("/executions", controllers.ComposeUpHistory)
+			r.GET("/consul/services", controllers.GetConsulServices)
 		})
+}
+
+func setJsServerVar(isServer bool) {
+	indexPath := "views/index.html"
+	index, err := ioutil.ReadFile(indexPath)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	htmlIndex := ""
+	if isServer {
+		htmlIndex = strings.Replace(string(index), "server: false", "server: true", -1)
+	} else {
+		htmlIndex = strings.Replace(string(index), "server: true", "server: false", -1)
+	}
+
+	err = ioutil.WriteFile(indexPath, []byte(htmlIndex), 0644)
+	if err != nil {
+		logrus.Fatal(err)
+	}
 }
 
 func api(name string, username string, password string, f func(r *gin.Engine), g func(r *gin.RouterGroup)) {
